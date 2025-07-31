@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import User from './User.js';
 
 const messageSchema = new mongoose.Schema({
   sender: {
@@ -65,9 +66,14 @@ messageSchema.statics.sendAutoReply = async function(userId) {
   }
 
   try {
+    // Find an admin user to use as sender
+    const adminUser = await User.findOne({ role: { $in: ['admin', 'main_admin', 'super_admin'] }, isAdmin: true });
+    if (!adminUser) {
+      throw new Error('No admin user found for auto-reply sender');
+    }
     // Create auto-reply message
     const autoReply = new this({
-      sender: null, // System message
+      sender: adminUser._id, // Use admin ObjectId
       recipient: userId,
       conversation: userId.toString(),
       text: "Thanks for your message! An admin will review it shortly and get back to you.",
@@ -77,7 +83,7 @@ messageSchema.statics.sendAutoReply = async function(userId) {
     });
 
     const savedAutoReply = await autoReply.save();
-    console.log(`✅ Auto-reply sent to user ${userId}`);
+    console.log(`✅ Auto-reply sent to user ${userId} from admin ${adminUser._id}`);
     return savedAutoReply;
   } catch (error) {
     console.error('Error sending auto-reply:', error);

@@ -126,27 +126,29 @@ const AdminMessages = () => {
                   <div
                     key={message.id}
                     className={`flex items-end gap-3 ${
-                      message.sender === 'admin' ? 'justify-end' : 'justify-start'
+                      message.senderType === 'admin' ? 'justify-end' : 'justify-start'
                     }`}
                   >
-                    {message.sender === 'user' && (
+                    {message.senderType === 'user' && (
                       <Avatar className="w-8 h-8">
                         <AvatarFallback className="bg-blue-600 text-white">{selectedUser.name.charAt(0)}</AvatarFallback>
                       </Avatar>
                     )}
                     <div
                       className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
-                        message.sender === 'admin'
+                        message.senderType === 'admin'
                           ? 'bg-red-600 text-white rounded-br-none'
                           : 'bg-gray-700 text-white rounded-bl-none'
                       }`}
                     >
                       <p className="text-sm">{message.text}</p>
                       <p className="text-xs opacity-70 mt-1 text-right">
-                        {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {message.timestamp && !isNaN(new Date(message.timestamp))
+                          ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          : '—'}
                       </p>
                     </div>
-                    {message.sender === 'admin' && (
+                    {message.senderType === 'admin' && (
                       <Avatar className="w-8 h-8">
                         <AvatarFallback className="bg-red-600 text-white">A</AvatarFallback>
                       </Avatar>

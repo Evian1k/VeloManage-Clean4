@@ -197,7 +197,6 @@ async (req, res) => {
 
   } catch (error) {
     console.error('Registration error:', error);
-    
     // Handle mongoose duplicate key error (just in case)
     if (error.code === 11000) {
       return res.status(409).json({
@@ -207,10 +206,12 @@ async (req, res) => {
         action: 'redirect_to_login'
       });
     }
-    
+    // Enhanced error response for debugging
     res.status(500).json({
       success: false,
-      message: 'Server error during registration'
+      message: 'Server error during registration',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
     });
   }
 });
