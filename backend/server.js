@@ -53,7 +53,8 @@ app.use(helmet());
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://velomanage-clean-frontend.onrender.com', // replace with your actual frontend domain if different
+    'https://velomanage-clean-frontend.onrender.com',
+    'https://velo-manage-clean4.vercel.app', // added deployed Vercel frontend
   ],
   credentials: true
 }));

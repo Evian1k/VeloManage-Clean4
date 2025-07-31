@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
@@ -59,11 +58,26 @@ const RegisterPage = () => {
         navigate('/dashboard');
       }
     } catch (error) {
-      toast({
-        title: "Registration failed",
-        description: "Please try again later.",
-        variant: "destructive",
-      });
+      // Enhanced error handling for duplicate email
+      if (error.code === 'EMAIL_ALREADY_EXISTS' || (error.message && error.message.includes('already been signed up'))) {
+        toast({
+          title: "Email already registered",
+          // Use JSX in description via a function
+          description: () => (
+            <span>
+              You have already signed up with this email.{' '}
+              <Link to="/login" className="text-red-500 underline">Sign in here</Link>.
+            </span>
+          ),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration failed",
+          description: error.message || "Please try again later.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
