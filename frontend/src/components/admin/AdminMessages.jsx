@@ -143,8 +143,8 @@ const AdminMessages = () => {
                     >
                       <p className="text-sm">{message.text}</p>
                       <p className="text-xs opacity-70 mt-1 text-right">
-                        {message.timestamp && !isNaN(new Date(message.timestamp))
-                          ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        {message.createdAt && !isNaN(new Date(message.createdAt))
+                          ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                           : '—'}
                       </p>
                     </div>

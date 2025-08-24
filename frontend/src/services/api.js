@@ -131,6 +131,12 @@ class ApiService {
     return this.request('/messages');
   }
 
+  // Fetch messages for a specific conversation (admin viewing a user's thread)
+  async getMessagesForConversation(userId) {
+    const params = new URLSearchParams({ userId });
+    return this.request(`/messages?${params.toString()}`);
+  }
+
   async sendMessage(messageData) {
     return this.request('/messages', {
       method: 'POST',
@@ -146,6 +152,11 @@ class ApiService {
 
   async getConversations() {
     return this.request('/messages/conversations');
+  }
+
+  async getAdminAllMessages(page = 1, limit = 50, unreadOnly = false) {
+    const params = new URLSearchParams({ page, limit, unreadOnly });
+    return this.request(`/messages/admin/all?${params.toString()}`);
   }
 
   // Branch endpoints

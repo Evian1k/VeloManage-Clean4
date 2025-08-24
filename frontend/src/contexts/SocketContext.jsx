@@ -17,8 +17,8 @@ export const SocketProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('autocare_user') || localStorage.getItem('user') || '{}');
     
     if (!token) return;
 
@@ -35,10 +35,10 @@ export const SocketProvider = ({ children }) => {
       
       // Join appropriate rooms based on user role
       const adminRoles = ['admin', 'main_admin', 'super_admin'];
-      if (adminRoles.includes(user.role)) {
+      if (adminRoles.includes(user.role) || user.isAdmin) {
         newSocket.emit('join-admin-room');
       } else {
-        newSocket.emit('join-user-room', user._id);
+        newSocket.emit('join-user-room', user.id || user._id);
       }
     });
 

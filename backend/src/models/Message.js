@@ -131,12 +131,19 @@ messageSchema.statics.getAllConversations = async function() {
     }
   ]);
 
-  // Populate user data
-  await this.populate(conversations, {
-    path: 'lastMessage.sender',
-    model: 'User',
-    select: 'name email phone'
-  });
+  // Populate sender and recipient data for the last message
+  await this.populate(conversations, [
+    {
+      path: 'lastMessage.sender',
+      model: 'User',
+      select: 'name email phone role'
+    },
+    {
+      path: 'lastMessage.recipient',
+      model: 'User',
+      select: 'name email phone role'
+    }
+  ]);
 
   return conversations;
 };
