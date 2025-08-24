@@ -44,10 +44,11 @@ const NotificationSystem = () => {
       // Check all user conversations for new messages
       Object.keys(allConversations).forEach(userId => {
         const messages = allConversations[userId] || [];
-        const newUserMessages = messages.filter(msg => 
-          msg.sender === 'user' && 
-          new Date(msg.timestamp).getTime() > lastCheckRef.current
-        );
+        const newUserMessages = messages.filter(msg => {
+          const t = msg.createdAt || msg.timestamp;
+          const timeMs = t ? new Date(t).getTime() : 0;
+          return msg.sender === 'user' && timeMs > lastCheckRef.current;
+        });
         
         newUserMessages.forEach(msg => {
           newMessages.push({
@@ -63,10 +64,11 @@ const NotificationSystem = () => {
     } else if (user) {
       // Check for new admin replies
       const userMessages = allConversations[user.id] || [];
-      const newAdminMessages = userMessages.filter(msg => 
-        msg.sender === 'admin' && 
-        new Date(msg.timestamp).getTime() > lastCheckRef.current
-      );
+      const newAdminMessages = userMessages.filter(msg => {
+        const t = msg.createdAt || msg.timestamp;
+        const timeMs = t ? new Date(t).getTime() : 0;
+        return msg.sender === 'admin' && timeMs > lastCheckRef.current;
+      });
       
       newAdminMessages.forEach(msg => {
         newMessages.push({

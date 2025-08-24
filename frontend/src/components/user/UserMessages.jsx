@@ -47,7 +47,7 @@ const UserMessages = () => {
         <CardContent className="flex-grow overflow-y-auto pr-4 space-y-4">
           {messages.map((message) => (
             <div
-              key={message.id}
+              key={message._id || message.id}
               className={`flex items-end gap-3 ${
                 (message.sender === 'user' && !user.isAdmin) || (message.sender === 'admin' && user.isAdmin)
                   ? 'justify-end'
@@ -69,7 +69,9 @@ const UserMessages = () => {
               >
                 <p className="text-sm">{message.text}</p>
                 <p className="text-xs opacity-70 mt-1 text-right">
-                  {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {(message.createdAt || message.timestamp) && !isNaN(new Date(message.createdAt || message.timestamp))
+                    ? new Date(message.createdAt || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '—'}
                 </p>
               </div>
 
