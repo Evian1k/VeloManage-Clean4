@@ -239,10 +239,10 @@ const TrackingPage = () => {
               <CardContent>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-white mb-2">
-                    {estimatedArrival ? new Date(estimatedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {estimatedArrival && !isNaN(new Date(estimatedArrival)) ? new Date(estimatedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </div>
                   <p className="text-gray-400 text-sm">
-                    {estimatedArrival ? new Date(estimatedArrival).toLocaleDateString() : 'Calculating...'}
+                    {estimatedArrival && !isNaN(new Date(estimatedArrival)) ? new Date(estimatedArrival).toLocaleDateString() : 'Calculating...'}
                   </p>
                   <div className="mt-4 p-3 bg-green-900/20 rounded-lg border border-green-500/30">
                     <p className="text-green-400 text-sm font-medium">On Time</p>
@@ -296,7 +296,7 @@ const TrackingPage = () => {
                     <div>
                       <p className="text-white text-sm font-medium">Request Approved</p>
                       <p className="text-gray-400 text-xs">
-                        {new Date(request.updatedAt || request.createdAt).toLocaleString()}
+                        {(() => { const d = new Date(request.updatedAt || request.createdAt); return !isNaN(d) ? d.toLocaleString() : ''; })()}
                       </p>
                     </div>
                   </div>

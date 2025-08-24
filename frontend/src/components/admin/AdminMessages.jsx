@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 const AdminMessages = () => {
   const { user } = useAuth();
-  const { conversations, sendMessageToUser, usersWithMessages, refreshUserList } = useMessages();
+  const { conversations, sendMessageToUser, usersWithMessages, refreshMessages } = useMessages();
   const [selectedUser, setSelectedUser] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
@@ -24,10 +24,8 @@ const AdminMessages = () => {
   }, [usersWithMessages, selectedUser]);
 
   // Add a manual refresh function for better UX
-  const refreshMessages = () => {
-    refreshUserList();
-    // Also refresh conversations
-    window.location.reload();
+  const handleRefresh = () => {
+    refreshMessages();
   };
 
   const scrollToBottom = () => {
@@ -63,7 +61,7 @@ const AdminMessages = () => {
             <div className="flex items-center justify-between">
               <CardTitle className="text-white">Conversations</CardTitle>
               <Button
-                onClick={refreshMessages}
+                onClick={handleRefresh}
                 variant="outline"
                 size="sm"
                 className="border-red-900/50 text-red-300 hover:bg-red-900/20"
@@ -80,7 +78,7 @@ const AdminMessages = () => {
                 <p className="text-sm">Users will appear here when they send messages</p>
               </div>
             ) : (
-              usersWithMessages.map((convUser) => (
+              usersWithMessages.map((convUser, idx) => (
                 <div
                   key={convUser.id}
                   onClick={() => setSelectedUser(convUser)}
@@ -89,10 +87,10 @@ const AdminMessages = () => {
                   }`}
                 >
                   <Avatar>
-                    <AvatarFallback className="bg-blue-600 text-white">{convUser.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="bg-blue-600 text-white">{(convUser.name || 'U').charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold text-white">{convUser.name}</p>
+                    <p className="font-semibold text-white">{convUser.name || 'User'}</p>
                     <p className="text-sm text-gray-400 truncate">
                       {conversations[convUser.id]?.slice(-1)[0]?.text || 'No messages yet'}
                     </p>
@@ -143,8 +141,8 @@ const AdminMessages = () => {
                     >
                       <p className="text-sm">{message.text}</p>
                       <p className="text-xs opacity-70 mt-1 text-right">
-                        {message.timestamp && !isNaN(new Date(message.timestamp))
-                          ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        {(message.createdAt || message.timestamp) && !isNaN(new Date(message.createdAt || message.timestamp))
+                          ? new Date(message.createdAt || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                           : '—'}
                       </p>
                     </div>

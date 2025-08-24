@@ -127,8 +127,9 @@ class ApiService {
   }
 
   // Message endpoints
-  async getMessages() {
-    return this.request('/messages');
+  async getMessages(userId) {
+    const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return this.request(`/messages${query}`);
   }
 
   async sendMessage(messageData) {

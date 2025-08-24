@@ -18,6 +18,11 @@ const ServiceHistoryPage = () => {
     .filter(req => req.userId === user.id && req.status === 'completed')
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
+  const formatSafeDate = (dateLike) => {
+    const d = dateLike ? new Date(dateLike) : null;
+    return d && !isNaN(d) ? d.toLocaleDateString() : '';
+  };
+
   return (
     <div className="min-h-screen p-4">
       <Helmet>
@@ -79,7 +84,7 @@ const ServiceHistoryPage = () => {
                           {request.serviceType}
                         </CardTitle>
                         <CardDescription className="text-gray-300">
-                          Completed on: {new Date(request.updatedAt || request.createdAt).toLocaleDateString()}
+                          Completed on: {formatSafeDate(request.updatedAt || request.createdAt)}
                         </CardDescription>
                       </div>
                       <Badge className="status-completed text-white">

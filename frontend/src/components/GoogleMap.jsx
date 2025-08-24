@@ -145,7 +145,7 @@ const GoogleMap = ({
             <p class="text-sm text-gray-600">${location.user.email}</p>
             <p class="text-sm">${location.address || 'No address provided'}</p>
             <p class="text-xs text-gray-500">
-              ${new Date(location.updatedAt).toLocaleString()}
+              ${(() => { const d = new Date(location.updatedAt); return !isNaN(d) ? d.toLocaleString() : ''; })()}
             </p>
           </div>
         `

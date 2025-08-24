@@ -66,11 +66,43 @@ export const MessageProvider = ({ children }) => {
       setLoading(true);
       
       if (user.isAdmin) {
-        // Admin: Load all conversations
+        // Admin: Load conversation summaries then fetch each conversation
         const response = await apiService.getConversations();
         if (response.success) {
-          setConversations(response.data || {});
-          setUsersWithMessages(response.users || []);
+          const summaries = response.data || [];
+          const usersList = summaries.map((c) => {
+            const last = c.lastMessage || {};
+            const isUserSender = last.senderType === 'user';
+            const name = isUserSender ? (last.sender?.name || 'User') : (last.recipient?.name || 'User');
+            const email = isUserSender ? (last.sender?.email || '') : (last.recipient?.email || '');
+            return {
+              id: c._id,
+              name,
+              email
+            };
+          });
+          setUsersWithMessages(usersList);
+          // Fetch messages for each conversation in parallel (limited to first 20 for perf)
+          const toFetch = usersList.slice(0, 20);
+          const results = await Promise.allSettled(
+            toFetch.map((u) => apiService.getMessages(u.id))
+          );
+          const convMap = {};
+          results.forEach((res, idx) => {
+            const convUser = toFetch[idx];
+            if (res.status === 'fulfilled' && res.value?.success) {
+              const normalized = (res.value.data || []).map((m) => ({
+                id: m._id || m.id,
+                _id: m._id || m.id,
+                text: m.text,
+                senderType: m.senderType || (m.sender === 'admin' || m.sender === 'user' ? m.sender : undefined),
+                sender: m.senderType || (m.sender === 'admin' || m.sender === 'user' ? m.sender : undefined),
+                timestamp: m.createdAt || m.timestamp
+              })).reverse();
+              convMap[convUser.id] = normalized;
+            }
+          });
+          setConversations(convMap);
         } else {
           // Fallback to local storage
           const localConvos = getLocalConversations();
@@ -80,12 +112,28 @@ export const MessageProvider = ({ children }) => {
         // User: Check if messages are already loaded in user data
         if (user.messages && user.messages.length > 0) {
           // Messages already loaded from profile
-          setConversations({ [user.id]: user.messages });
+          const normalized = user.messages.map((m) => ({
+            id: m._id || m.id,
+            _id: m._id || m.id,
+            text: m.text,
+            senderType: m.senderType || (m.sender === 'admin' || m.sender === 'user' ? m.sender : undefined),
+            sender: m.senderType || (m.sender === 'admin' || m.sender === 'user' ? m.sender : undefined),
+            timestamp: m.createdAt || m.timestamp
+          }));
+          setConversations({ [user.id]: normalized });
         } else {
           // Load messages from API
           const response = await apiService.getMessages();
           if (response.success) {
-            setConversations({ [user.id]: response.data || [] });
+            const normalized = (response.data || []).map((m) => ({
+              id: m._id || m.id,
+              _id: m._id || m.id,
+              text: m.text,
+              senderType: m.senderType || (m.sender === 'admin' || m.sender === 'user' ? m.sender : undefined),
+              sender: m.senderType || (m.sender === 'admin' || m.sender === 'user' ? m.sender : undefined),
+              timestamp: m.createdAt || m.timestamp
+            })).reverse();
+            setConversations({ [user.id]: normalized });
           } else {
             // Fallback to local storage
             const savedMessages = localStorage.getItem(`autocare_messages_${user.id}`);
@@ -165,9 +213,16 @@ export const MessageProvider = ({ children }) => {
       
       if (response.success) {
         // Update local state with the sent message
-        const sentMessage = response.data;
-        const conversationId = user.isAdmin ? sentMessage.recipient : user.id;
-        
+        const raw = response.data;
+        const sentMessage = {
+          id: raw._id || raw.id,
+          _id: raw._id || raw.id,
+          text: raw.text,
+          senderType: raw.senderType,
+          sender: raw.senderType,
+          timestamp: raw.createdAt || raw.timestamp
+        };
+        const conversationId = user.isAdmin ? (raw.recipient || raw.conversation) : (user.id || user._id);
         const currentMessages = conversations[conversationId] || [];
         const updatedMessages = [...currentMessages, sentMessage];
         const newConversations = { ...conversations, [conversationId]: updatedMessages };
@@ -178,10 +233,19 @@ export const MessageProvider = ({ children }) => {
         
         // If auto-reply was sent, add it to state
         if (response.autoReply) {
-          const messagesWithReply = [...updatedMessages, response.autoReply];
+          const ar = response.autoReply;
+          const autoReply = {
+            id: ar._id || ar.id,
+            _id: ar._id || ar.id,
+            text: ar.text,
+            senderType: ar.senderType || 'admin',
+            sender: ar.senderType || 'admin',
+            timestamp: ar.createdAt || ar.timestamp
+          };
+          const messagesWithReply = [...updatedMessages, autoReply];
           const finalConversations = { ...conversations, [conversationId]: messagesWithReply };
           setConversations(finalConversations);
-          saveMessageLocally(response.autoReply, conversationId);
+          saveMessageLocally(autoReply, conversationId);
         }
         
         // Update user list for admin view
@@ -203,7 +267,7 @@ export const MessageProvider = ({ children }) => {
         pending: true // Mark as pending sync
       };
       
-      const conversationId = user.id;
+      const conversationId = user.id || user._id;
       const currentMessages = conversations[conversationId] || [];
       const updatedMessages = [...currentMessages, newMessage];
       const newConversations = { ...conversations, [conversationId]: updatedMessages };
