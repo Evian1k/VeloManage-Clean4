@@ -49,12 +49,12 @@ const UserMessages = () => {
             <div
               key={message.id}
               className={`flex items-end gap-3 ${
-                (message.sender === 'user' && !user.isAdmin) || (message.sender === 'admin' && user.isAdmin)
+                (message.senderType === 'user' && !user.isAdmin) || (message.senderType === 'admin' && user.isAdmin)
                   ? 'justify-end'
                   : 'justify-start'
               }`}
             >
-              {(message.sender === 'admin' && !user.isAdmin) || (message.sender === 'user' && user.isAdmin) ? (
+              {(message.senderType === 'admin' && !user.isAdmin) || (message.senderType === 'user' && user.isAdmin) ? (
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-red-600 text-white">A</AvatarFallback>
                 </Avatar>
@@ -62,18 +62,20 @@ const UserMessages = () => {
 
               <div
                 className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
-                  (message.sender === 'user' && !user.isAdmin) || (message.sender === 'admin' && user.isAdmin)
+                  (message.senderType === 'user' && !user.isAdmin) || (message.senderType === 'admin' && user.isAdmin)
                     ? 'bg-red-600 text-white rounded-br-none'
                     : 'bg-gray-700 text-white rounded-bl-none'
                 }`}
               >
                 <p className="text-sm">{message.text}</p>
                 <p className="text-xs opacity-70 mt-1 text-right">
-                  {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {message.createdAt && !isNaN(new Date(message.createdAt))
+                    ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '—'}
                 </p>
               </div>
 
-              {(message.sender === 'user' && !user.isAdmin) || (message.sender === 'admin' && user.isAdmin) ? (
+              {(message.senderType === 'user' && !user.isAdmin) || (message.senderType === 'admin' && user.isAdmin) ? (
                  <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-blue-600 text-white">{user.name.charAt(0)}</AvatarFallback>
                 </Avatar>
