@@ -1,4 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
+// Determine API base URL based on environment and hostname
+// Priority:
+// 1) If running on localhost/127.0.0.1, use VITE_LOCAL_API_URL (fallback to localhost default)
+// 2) Otherwise, use VITE_PROD_API_URL (fallback to VITE_API_URL for backward compatibility)
+const isLocalHost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+const API_BASE_URL = (
+  isLocalHost
+    ? (import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3001/api/v1')
+    : (import.meta.env.VITE_PROD_API_URL || import.meta.env.VITE_API_URL)
+);
 
 class ApiService {
   constructor() {

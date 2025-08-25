@@ -22,8 +22,14 @@ export const SocketProvider = ({ children }) => {
     
     if (!token) return;
 
-    // Initialize socket connection
-    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
+    // Initialize socket connection with environment-aware base URL
+    const isLocalHost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+    const rawBase = isLocalHost
+      ? (import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3001/api/v1')
+      : (import.meta.env.VITE_PROD_API_URL || import.meta.env.VITE_API_URL || '');
+    const SOCKET_BASE_URL = (rawBase && rawBase.replace(/\/$/, '').replace(/\/api\/v1\/?$/, '')) || 'http://localhost:3001';
+
+    const newSocket = io(SOCKET_BASE_URL, {
       auth: {
         token
       }
