@@ -19,6 +19,7 @@ import bookingRoutes from './src/routes/bookings.js';
 import analyticsRoutes from './src/routes/analytics.js';
 import dashboardRoutes from './src/routes/dashboard.js  ';
 import locationRoutes from './src/routes/locations.js';
+import paymentRoutes from './src/routes/payments.js';
 
 // Import middleware
 import { authenticateToken } from './src/middleware/auth.js';
@@ -87,6 +88,7 @@ app.use(`/api/${apiVersion}/bookings`, authenticateToken, bookingRoutes);
 app.use(`/api/${apiVersion}/analytics`, authenticateToken, analyticsRoutes);
 app.use(`/api/${apiVersion}/dashboard`, authenticateToken, dashboardRoutes);
 app.use(`/api/${apiVersion}/locations`, authenticateToken, locationRoutes);
+app.use(`/api/${apiVersion}/payments`, paymentRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

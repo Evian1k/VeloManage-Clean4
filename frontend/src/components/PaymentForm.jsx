@@ -23,6 +23,7 @@ const PaymentFormContent = ({ onPaymentSuccess, onPaymentError }) => {
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('usd');
   const [description, setDescription] = useState('');
+  const [method, setMethod] = useState('card'); // card | mpesa | paypal
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -37,7 +38,7 @@ const PaymentFormContent = ({ onPaymentSuccess, onPaymentError }) => {
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
       const response = await fetch('/api/v1/payments/create-payment-intent', {
         method: 'POST',
         headers: {
@@ -68,57 +69,97 @@ const PaymentFormContent = ({ onPaymentSuccess, onPaymentError }) => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!stripe || !elements) {
-      return;
-    }
+    if (method === 'card' && (!stripe || !elements)) return;
 
-    if (!clientSecret) {
-      await handleCreatePaymentIntent();
-      return;
-    }
-
-    setIsProcessing(true);
-    setError('');
-
-    const cardElement = elements.getElement(CardElement);
-
-    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: {
-        card: cardElement,
-        billing_details: {
-          name: 'AutoCare Pro Customer',
-        },
+    if (method === 'card') {
+      if (!clientSecret) {
+        await handleCreatePaymentIntent();
+        return;
       }
-    });
 
-    if (error) {
-      setError(error.message);
-      setIsProcessing(false);
-    } else {
-      // Payment succeeded
-      try {
-        const token = localStorage.getItem('token');
-        await fetch('/api/v1/payments/confirm-payment', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+      setIsProcessing(true);
+      setError('');
+
+      const cardElement = elements.getElement(CardElement);
+
+      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement,
+          billing_details: {
+            name: 'AutoCare Pro Customer',
           },
-          body: JSON.stringify({
-            paymentIntentId: paymentIntent.id
-          })
-        });
+        }
+      });
 
-        onPaymentSuccess && onPaymentSuccess(paymentIntent);
-        
-        // Reset form
-        setAmount('');
-        setDescription('');
-        setClientSecret('');
-      } catch (err) {
-        console.error('Payment confirmation error:', err);
+      if (error) {
+        setError(error.message);
+        setIsProcessing(false);
+      } else {
+        try {
+          const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+          await fetch('/api/v1/payments/confirm-payment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ paymentIntentId: paymentIntent.id })
+          });
+          onPaymentSuccess && onPaymentSuccess(paymentIntent);
+          setAmount('');
+          setDescription('');
+          setClientSecret('');
+        } catch (err) {
+          console.error('Payment confirmation error:', err);
+        }
+        setIsProcessing(false);
       }
-      setIsProcessing(false);
+      return;
+    }
+
+    // MPesa stub flow
+    if (method === 'mpesa') {
+      try {
+        setIsProcessing(true);
+        const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+        const response = await fetch('/api/v1/payments/mpesa/initiate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ amount: parseFloat(amount), phone: '2547XXXXXXXX', description: description || 'AutoCare Pro Service Payment' })
+        });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'MPesa initiation failed');
+        onPaymentSuccess && onPaymentSuccess({ id: data.data.paymentId, amount: parseFloat(amount) * 100 });
+        setAmount(''); setDescription('');
+      } catch (e) {
+        setError(e.message);
+        onPaymentError && onPaymentError(e);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // PayPal stub flow
+    if (method === 'paypal') {
+      try {
+        setIsProcessing(true);
+        const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+        const response = await fetch('/api/v1/payments/paypal/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ amount: parseFloat(amount), currency: currency.toUpperCase(), description: description || 'AutoCare Pro Service Payment' })
+        });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'PayPal order failed');
+        onPaymentSuccess && onPaymentSuccess({ id: data.data.orderId, amount: parseFloat(amount) * 100 });
+        setAmount(''); setDescription('');
+      } catch (e) {
+        setError(e.message);
+        onPaymentError && onPaymentError(e);
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -184,6 +225,21 @@ const PaymentFormContent = ({ onPaymentSuccess, onPaymentError }) => {
                 <SelectItem value="usd">USD - US Dollar</SelectItem>
                 <SelectItem value="eur">EUR - Euro</SelectItem>
                 <SelectItem value="gbp">GBP - British Pound</SelectItem>
+                <SelectItem value="kes">KES - Kenyan Shilling</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="method">Payment Method</Label>
+            <Select value={method} onValueChange={setMethod} disabled={isProcessing}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="card">Card (Stripe)</SelectItem>
+                <SelectItem value="mpesa">M-Pesa (Simulated)</SelectItem>
+                <SelectItem value="paypal">PayPal (Simulated)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -199,7 +255,7 @@ const PaymentFormContent = ({ onPaymentSuccess, onPaymentError }) => {
             />
           </div>
 
-          {clientSecret && (
+          {method === 'card' && clientSecret && (
             <div className="space-y-2">
               <Label>Card Details</Label>
               <div className="p-3 border rounded-md">
@@ -219,7 +275,7 @@ const PaymentFormContent = ({ onPaymentSuccess, onPaymentError }) => {
                 {clientSecret ? 'Processing Payment...' : 'Creating Payment...'}
               </>
             ) : (
-              clientSecret ? `Pay $${amount}` : 'Create Payment'
+              method === 'card' ? (clientSecret ? `Pay $${amount}` : 'Create Payment') : (method === 'mpesa' ? 'Pay with M-Pesa' : 'Pay with PayPal')
             )}
           </Button>
         </form>

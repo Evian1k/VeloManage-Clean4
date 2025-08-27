@@ -12,9 +12,61 @@ import AdminUserConversations from '@/components/admin/AdminUserConversations';
 import TruckDispatch from '@/components/admin/TruckDispatch';
 import AddTruckForm from '@/components/admin/AddTruckForm';
 import PaymentForm from '@/components/PaymentForm';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import GoogleMap from '@/components/GoogleMap';
 import { useSocket } from '@/contexts/SocketContext';
 import { Wrench, MessageSquare, Truck, CreditCard, MapPin, Plus } from 'lucide-react';
+import React, { useEffect } from 'react';
+
+const AdminPaymentsList = () => {
+  const [payments, setPayments] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+      const res = await fetch('/api/v1/payments', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to load payments');
+      setPayments(data.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <Card className="glass-effect border-red-900/30">
+      <CardHeader>
+        <CardTitle className="text-white">Recent Payments</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading && <div className="text-gray-300">Loading...</div>}
+        {error && <div className="text-red-400">{error}</div>}
+        {!loading && payments.length === 0 && <div className="text-gray-400">No payments yet.</div>}
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {payments.map(p => (
+            <div key={p._id} className="p-3 bg-red-900 rounded-lg border border-red-800 flex justify-between">
+              <div>
+                <div className="text-white font-medium">{p.method.replace('_', ' ').toUpperCase()}</div>
+                <div className="text-gray-300 text-sm">{p.user?.name || 'User'} • {new Date(p.createdAt).toLocaleString()}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-white font-semibold">{p.currency} {((p.amount || 0) / 100).toFixed(2)}</div>
+                <div className={`text-xs ${p.status === 'completed' ? 'text-green-300' : p.status === 'failed' ? 'text-red-300' : 'text-yellow-300'}`}>{p.status}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const sidebarTabs = [
   { value: 'requests', label: 'Service Requests', icon: <Wrench className="w-5 h-5 mr-2" /> },
@@ -147,30 +199,7 @@ const AdminDashboard = () => {
               <h2 className="text-2xl font-bold text-white mb-6">Payment Management</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <PaymentForm onPaymentSuccess={handlePaymentSuccess} />
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white">Recent Payment Notifications</h3>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {notifications
-                      .filter(notif => notif.type === 'payment')
-                      .slice(0, 10)
-                      .map(notif => (
-                        <div key={notif.id} className="p-3 bg-red-900 rounded-lg border border-red-800">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h4 className="font-medium text-white">{notif.title}</h4>
-                              <p className="text-sm text-gray-300">{notif.message}</p>
-                            </div>
-                            <button
-                              onClick={() => removeNotification(notif.id)}
-                              className="text-gray-400 hover:text-white"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
+                <AdminPaymentsList />
               </div>
             </div>
           )}

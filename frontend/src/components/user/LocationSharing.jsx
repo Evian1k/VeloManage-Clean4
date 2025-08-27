@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTimeAgo } from '@/lib/utils';
-import MapView from '@/components/MapView';
+import GoogleMap from '@/components/GoogleMap';
 
 const LocationSharing = () => {
   const { user } = useAuth();
@@ -397,12 +397,14 @@ const LocationSharing = () => {
               {showMap ? 'Hide Map' : 'Show Map'}
             </Button>
           </div>
-          <MapView 
-            trucks={trucks} 
-            pickupRequests={pickupRequests.filter(req => req.userId === user?.id)}
-            userLocation={location}
-            showControls={true}
-          />
+          {/* Use Google Maps for accurate location display */}
+          <div className="mt-4">
+            <GoogleMap 
+              showUserLocations={false}
+              allowLocationSharing={true}
+              onLocationShared={() => {}}
+            />
+          </div>
         </motion.div>
       )}
     </div>
