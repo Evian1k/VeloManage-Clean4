@@ -24,6 +24,7 @@ const GoogleMap = ({
   const { addNotification } = useSocket();
   const directionsRendererRef = useRef(null);
   const directionsServiceRef = useRef(null);
+  const [routeInfo, setRouteInfo] = useState(null);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -113,11 +114,19 @@ const GoogleMap = ({
             travelMode: google.maps.TravelMode.DRIVING
           });
           directionsRendererRef.current.setDirections(result);
+          const leg = result?.routes?.[0]?.legs?.[0];
+          if (leg) {
+            setRouteInfo({
+              distanceText: leg.distance?.text,
+              durationText: leg.duration?.text
+            });
+          }
         } catch (e) {
           // fallback: no route
         }
       } else if (directionsRendererRef.current) {
         directionsRendererRef.current.setDirections({ routes: [] });
+        setRouteInfo(null);
       }
     };
 
@@ -338,6 +347,11 @@ const GoogleMap = ({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {routeInfo && (
+            <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-md p-2">
+              ETA: {routeInfo.durationText} • Distance: {routeInfo.distanceText}
+            </div>
+          )}
           {allowLocationSharing && (
             <div className="flex gap-2">
               <Button
