@@ -9,11 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTimeAgo } from '@/lib/utils';
+import { useSocket } from '@/contexts/SocketContext';
 import GoogleMap from '@/components/GoogleMap';
 
 const LocationSharing = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { socket } = useSocket();
   const [location, setLocation] = useState(null);
   const [address, setAddress] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -21,6 +23,8 @@ const LocationSharing = () => {
   const [loading, setLoading] = useState(false);
   const [trucks, setTrucks] = useState([]);
   const [showMap, setShowMap] = useState(true);
+  const [assignedTruckId, setAssignedTruckId] = useState(null);
+  const [assignedTruckLocation, setAssignedTruckLocation] = useState(null);
 
   useEffect(() => {
     // Load user's pickup requests
@@ -37,6 +41,35 @@ const LocationSharing = () => {
       setTrucks(JSON.parse(savedTrucks));
     }
   }, [user]);
+
+  // Listen for dispatch and live truck location updates
+  useEffect(() => {
+    if (!socket) return;
+    const handleDispatch = (data) => {
+      if (data?.userId === user?.id || data?.userId === user?._id) {
+        setAssignedTruckId(data.truckId || data.truck);
+      }
+    };
+    const handleTruckLocation = (data) => {
+      if (!data) return;
+      const incomingTruckId = data.truckId || data.id;
+      if (incomingTruckId && incomingTruckId === assignedTruckId) {
+        if (data.location) {
+          const lat = data.location.lat || data.location.latitude;
+          const lng = data.location.lng || data.location.longitude;
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            setAssignedTruckLocation({ lat, lng });
+          }
+        }
+      }
+    };
+    socket.on('truck-dispatch-update', handleDispatch);
+    socket.on('truck-location-updated', handleTruckLocation);
+    return () => {
+      socket.off('truck-dispatch-update', handleDispatch);
+      socket.off('truck-location-updated', handleTruckLocation);
+    };
+  }, [socket, user, assignedTruckId]);
 
   const getCurrentLocation = () => {
     setLoading(true);
@@ -403,6 +436,9 @@ const LocationSharing = () => {
               showUserLocations={false}
               allowLocationSharing={true}
               onLocationShared={() => {}}
+              truckLocation={assignedTruckLocation}
+              destination={location ? { lat: location.lat, lng: location.lng } : null}
+              showDirections={Boolean(assignedTruckLocation && location)}
             />
           </div>
         </motion.div>

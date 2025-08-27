@@ -9,7 +9,10 @@ import { useSocket } from '../contexts/SocketContext';
 const GoogleMap = ({ 
   showUserLocations = false, 
   allowLocationSharing = false,
-  onLocationShared = null 
+  onLocationShared = null,
+  truckLocation = null,
+  destination = null,
+  showDirections = false
 }) => {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -19,6 +22,8 @@ const GoogleMap = ({
   const [userLocations, setUserLocations] = useState([]);
   const [sharingLocation, setSharingLocation] = useState(false);
   const { addNotification } = useSocket();
+  const directionsRendererRef = useRef(null);
+  const directionsServiceRef = useRef(null);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -44,6 +49,9 @@ const GoogleMap = ({
         });
 
         setMap(mapInstance);
+        directionsServiceRef.current = new google.maps.DirectionsService();
+        directionsRendererRef.current = new google.maps.DirectionsRenderer({ suppressMarkers: true });
+        directionsRendererRef.current.setMap(mapInstance);
 
         // Try to get user's current location
         if (navigator.geolocation) {
@@ -87,6 +95,60 @@ const GoogleMap = ({
 
     initMap();
   }, []);
+
+  // Show truck marker and directions
+  useEffect(() => {
+    if (!map) return;
+    const google = window.google;
+
+    // Clear or update directions
+    const renderRoute = async () => {
+      if (showDirections && truckLocation && (destination || userLocation)) {
+        try {
+          const origin = truckLocation;
+          const dest = destination || userLocation;
+          const result = await directionsServiceRef.current.route({
+            origin,
+            destination: dest,
+            travelMode: google.maps.TravelMode.DRIVING
+          });
+          directionsRendererRef.current.setDirections(result);
+        } catch (e) {
+          // fallback: no route
+        }
+      } else if (directionsRendererRef.current) {
+        directionsRendererRef.current.setDirections({ routes: [] });
+      }
+    };
+
+    renderRoute();
+  }, [map, showDirections, truckLocation, destination, userLocation]);
+
+  // Truck marker
+  const truckMarkerRef = useRef(null);
+  useEffect(() => {
+    if (!map) return;
+    const google = window.google;
+    if (truckLocation) {
+      if (!truckMarkerRef.current) {
+        truckMarkerRef.current = new google.maps.Marker({
+          position: truckLocation,
+          map,
+          title: 'Assigned Truck',
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            fillColor: '#10B981',
+            fillOpacity: 1,
+            strokeWeight: 1,
+            strokeColor: '#ffffff'
+          }
+        });
+      } else {
+        truckMarkerRef.current.setPosition(truckLocation);
+      }
+    }
+  }, [map, truckLocation]);
 
   // Fetch and display user locations for admins
   useEffect(() => {
