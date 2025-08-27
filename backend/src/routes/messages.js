@@ -45,7 +45,7 @@ router.post('/', [
       });
     }
 
-    const { text, recipientId } = req.body;
+    const { text, recipientId, metadata } = req.body;
     const isAdmin = req.user.isAdminUser();
     
     // Determine conversation ID
@@ -72,7 +72,8 @@ router.post('/', [
       recipient,
       conversation: conversationId,
       text,
-      senderType: isAdmin ? 'admin' : 'user'
+      senderType: isAdmin ? 'admin' : 'user',
+      ...(metadata ? { metadata } : {})
     });
 
     await message.save();

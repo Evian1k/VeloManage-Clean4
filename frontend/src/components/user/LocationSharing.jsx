@@ -26,6 +26,7 @@ const LocationSharing = () => {
   const [assignedTruckId, setAssignedTruckId] = useState(null);
   const [assignedTruckLocation, setAssignedTruckLocation] = useState(null);
   const [savedLocations, setSavedLocations] = useState(() => JSON.parse(localStorage.getItem('autocare_saved_locations') || '[]'));
+  const [driverInfo, setDriverInfo] = useState(null);
 
   useEffect(() => {
     // Load user's pickup requests
@@ -71,6 +72,25 @@ const LocationSharing = () => {
       socket.off('truck-location-updated', handleTruckLocation);
     };
   }, [socket, user, assignedTruckId]);
+
+  // Fetch driver info when a truck is assigned
+  useEffect(() => {
+    const loadDriver = async () => {
+      try {
+        if (!assignedTruckId) return;
+        const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+        const res = await fetch(`/api/v1/trucks/${assignedTruckId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data && (data.success || data.truck)) {
+          const truck = data.data || data.truck;
+          if (truck?.driver) setDriverInfo(truck.driver);
+        }
+      } catch {}
+    };
+    loadDriver();
+  }, [assignedTruckId]);
 
   const getCurrentLocation = () => {
     setLoading(true);
@@ -467,6 +487,22 @@ const LocationSharing = () => {
               {showMap ? 'Hide Map' : 'Show Map'}
             </Button>
           </div>
+          {driverInfo && (
+            <div className="mb-4 flex items-center justify-between bg-black/30 border border-red-900/30 rounded-lg p-3">
+              <div>
+                <div className="text-white font-medium">Your Driver: {driverInfo.name}</div>
+                <div className="text-gray-300 text-sm">{driverInfo.phone}{driverInfo.email ? ` • ${driverInfo.email}` : ''}</div>
+              </div>
+              <div className="flex gap-2">
+                {driverInfo.phone && (
+                  <a href={`tel:${driverInfo.phone}`} className="px-3 py-2 text-sm rounded bg-green-700 text-white">Call</a>
+                )}
+                {driverInfo.phone && (
+                  <a href={`sms:${driverInfo.phone}`} className="px-3 py-2 text-sm rounded bg-blue-700 text-white">Text</a>
+                )}
+              </div>
+            </div>
+          )}
           {/* Use Google Maps for accurate location display */}
           <div className="mt-4">
             <GoogleMap 
