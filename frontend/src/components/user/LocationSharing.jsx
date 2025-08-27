@@ -25,6 +25,7 @@ const LocationSharing = () => {
   const [showMap, setShowMap] = useState(true);
   const [assignedTruckId, setAssignedTruckId] = useState(null);
   const [assignedTruckLocation, setAssignedTruckLocation] = useState(null);
+  const [savedLocations, setSavedLocations] = useState(() => JSON.parse(localStorage.getItem('autocare_saved_locations') || '[]'));
 
   useEffect(() => {
     // Load user's pickup requests
@@ -131,6 +132,21 @@ const LocationSharing = () => {
         maximumAge: 60000
       }
     );
+  };
+
+  const saveCurrentAsFavorite = () => {
+    if (!location) return;
+    const entry = { id: `loc-${Date.now()}`, label: address || `Pinned ${new Date().toLocaleString()}`, lat: location.lat, lng: location.lng };
+    const next = [entry, ...savedLocations].slice(0, 10);
+    setSavedLocations(next);
+    localStorage.setItem('autocare_saved_locations', JSON.stringify(next));
+    toast({ title: 'Saved', description: 'Location saved for quick reuse.' });
+  };
+
+  const applySavedLocation = (loc) => {
+    setLocation({ lat: loc.lat, lng: loc.lng });
+    setAddress(loc.label || `Location: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+    setIsSharing(true);
   };
 
   const shareLocationForPickup = () => {
@@ -330,6 +346,27 @@ const LocationSharing = () => {
                     <p className="text-sm text-gray-400">
                       Add landmarks or details to help the driver find you easily
                     </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button onClick={saveCurrentAsFavorite} variant="outline" className="border-red-900/50 text-red-300 hover:bg-red-900/20">
+                      Save this location
+                    </Button>
+                    {savedLocations.length > 0 && (
+                      <select
+                        onChange={(e) => {
+                          const loc = savedLocations.find(l => l.id === e.target.value);
+                          if (loc) applySavedLocation(loc);
+                        }}
+                        className="bg-black/50 border border-red-900/50 text-white rounded p-2 text-sm"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Choose saved location</option>
+                        {savedLocations.map(loc => (
+                          <option key={loc.id} value={loc.id}>{loc.label}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <Button
