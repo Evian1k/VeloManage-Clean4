@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Plus, Wrench, Calendar, Clock, MapPin, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { apiService } from '@/services/api';
 
 const UserRequests = ({ userRequests }) => {
   const getStatusColor = (status) => {
@@ -107,12 +108,60 @@ const UserRequests = ({ userRequests }) => {
                     </div>
                   </div>
                 )}
+
+                {request.status === 'completed' && (
+                  <div className="mt-4 p-3 bg-black/30 rounded-lg">
+                    <p className="text-gray-300 mb-2">Rate your service</p>
+                    <RatingForm request={request} />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
     </motion.div>
+  );
+};
+
+const RatingForm = ({ request }) => {
+  const [score, setScore] = useState(5);
+  const [feedback, setFeedback] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    try {
+      setSubmitting(true);
+      setError('');
+      await apiService.rateBooking(request.id, score, feedback);
+      setSuccess(true);
+    } catch (e) {
+      setError(e.message || 'Failed to submit rating');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (success) return <div className="text-green-400 text-sm">Thank you for your review!</div>;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {error && <div className="text-red-400 text-sm">{error}</div>}
+      <div className="flex items-center gap-2">
+        <span className="text-gray-300 text-sm">Rating:</span>
+        <select className="bg-black/50 border border-red-900/50 text-white rounded p-1" value={score} onChange={e => setScore(parseInt(e.target.value))} disabled={submitting}>
+          {[1,2,3,4,5].map(n => (<option key={n} value={n}>{n}</option>))}
+        </select>
+      </div>
+      <textarea className="bg-black/50 border border-red-900/50 text-white rounded p-2 text-sm" rows={2} placeholder="Optional feedback" value={feedback} onChange={e => setFeedback(e.target.value)} disabled={submitting} />
+      <div>
+        <Button size="sm" onClick={submit} disabled={submitting} className="bg-gradient-to-r from-green-600 to-green-700 text-white">
+          {submitting ? 'Submitting...' : 'Submit Review'}
+        </Button>
+      </div>
+    </div>
   );
 };
 

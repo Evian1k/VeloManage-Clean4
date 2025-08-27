@@ -131,6 +131,11 @@ class ApiService {
     return this.request('/messages');
   }
 
+  async getMessagesForUser(userId) {
+    const param = encodeURIComponent(userId);
+    return this.request(`/messages?userId=${param}`);
+  }
+
   async sendMessage(messageData) {
     return this.request('/messages', {
       method: 'POST',

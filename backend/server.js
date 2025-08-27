@@ -19,6 +19,7 @@ import bookingRoutes from './src/routes/bookings.js';
 import analyticsRoutes from './src/routes/analytics.js';
 import dashboardRoutes from './src/routes/dashboard.js  ';
 import locationRoutes from './src/routes/locations.js';
+import paymentRoutes from './src/routes/payments.js';
 
 // Import middleware
 import { authenticateToken } from './src/middleware/auth.js';
@@ -50,11 +51,21 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/autocare-
 
 // Middleware
 app.use(helmet());
+
+// Dynamic CORS allow-list (supports deployed frontend)
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.FRONTEND_URL,
+  process.env.ADDITIONAL_FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://velo-manage-clean4.vercel.app', // production frontend
-  ],
+  origin: function(origin, callback) {
+    // Allow REST tools and same-origin
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS not allowed for this origin'), false);
+  },
   credentials: true
 }));
 
@@ -87,6 +98,7 @@ app.use(`/api/${apiVersion}/bookings`, authenticateToken, bookingRoutes);
 app.use(`/api/${apiVersion}/analytics`, authenticateToken, analyticsRoutes);
 app.use(`/api/${apiVersion}/dashboard`, authenticateToken, dashboardRoutes);
 app.use(`/api/${apiVersion}/locations`, authenticateToken, locationRoutes);
+app.use(`/api/${apiVersion}/payments`, paymentRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -14,6 +14,7 @@ import UserMessages from '@/components/user/UserMessages';
 import LocationSharing from '@/components/user/LocationSharing';
 import PaymentForm from '@/components/PaymentForm';
 import GoogleMap from '@/components/GoogleMap';
+import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 
 const UserDashboard = () => {
   const { user } = useAuth();
@@ -98,6 +99,7 @@ const UserDashboard = () => {
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-white mb-6">Make a Payment</h2>
           <PaymentForm onPaymentSuccess={handlePaymentSuccess} />
+          <UserPaymentHistory />
         </div>
       )}
       {activeTab === 'notifications' && <UserNotifications notifications={notifications} />}
@@ -107,3 +109,55 @@ const UserDashboard = () => {
 };
 
 export default UserDashboard;
+
+const UserPaymentHistory = () => {
+  const [payments, setPayments] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+      const res = await fetch('/api/v1/payments', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to load payments');
+      setPayments(data.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  return (
+    <Card className="glass-effect border-red-900/30">
+      <CardHeader>
+        <CardTitle className="text-white">Your Payments</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading && <div className="text-gray-300">Loading...</div>}
+        {error && <div className="text-red-400">{error}</div>}
+        {!loading && payments.filter(p => p.user).length === 0 && <div className="text-gray-400">No payments yet.</div>}
+        <div className="space-y-3 max-h-80 overflow-y-auto">
+          {payments
+            .filter(p => p.user) // backend returns only user payments for normal users
+            .map(p => (
+              <div key={p._id} className="p-3 bg-black/30 rounded-lg border border-red-900/20 flex justify-between">
+                <div>
+                  <div className="text-white font-medium">{p.method.replace('_', ' ').toUpperCase()}</div>
+                  <div className="text-gray-300 text-sm">{new Date(p.createdAt).toLocaleString()}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-semibold">{p.currency} {((p.amount || 0) / 100).toFixed(2)}</div>
+                  <div className={`text-xs ${p.status === 'completed' ? 'text-green-300' : p.status === 'failed' ? 'text-red-300' : 'text-yellow-300'}`}>{p.status}</div>
+                </div>
+              </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};

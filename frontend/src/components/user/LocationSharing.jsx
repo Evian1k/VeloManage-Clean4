@@ -9,11 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getTimeAgo } from '@/lib/utils';
-import MapView from '@/components/MapView';
+import { useSocket } from '@/contexts/SocketContext';
+import GoogleMap from '@/components/GoogleMap';
 
 const LocationSharing = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { socket } = useSocket();
   const [location, setLocation] = useState(null);
   const [address, setAddress] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -21,6 +23,10 @@ const LocationSharing = () => {
   const [loading, setLoading] = useState(false);
   const [trucks, setTrucks] = useState([]);
   const [showMap, setShowMap] = useState(true);
+  const [assignedTruckId, setAssignedTruckId] = useState(null);
+  const [assignedTruckLocation, setAssignedTruckLocation] = useState(null);
+  const [savedLocations, setSavedLocations] = useState(() => JSON.parse(localStorage.getItem('autocare_saved_locations') || '[]'));
+  const [driverInfo, setDriverInfo] = useState(null);
 
   useEffect(() => {
     // Load user's pickup requests
@@ -37,6 +43,54 @@ const LocationSharing = () => {
       setTrucks(JSON.parse(savedTrucks));
     }
   }, [user]);
+
+  // Listen for dispatch and live truck location updates
+  useEffect(() => {
+    if (!socket) return;
+    const handleDispatch = (data) => {
+      if (data?.userId === user?.id || data?.userId === user?._id) {
+        setAssignedTruckId(data.truckId || data.truck);
+      }
+    };
+    const handleTruckLocation = (data) => {
+      if (!data) return;
+      const incomingTruckId = data.truckId || data.id;
+      if (incomingTruckId && incomingTruckId === assignedTruckId) {
+        if (data.location) {
+          const lat = data.location.lat || data.location.latitude;
+          const lng = data.location.lng || data.location.longitude;
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            setAssignedTruckLocation({ lat, lng });
+          }
+        }
+      }
+    };
+    socket.on('truck-dispatch-update', handleDispatch);
+    socket.on('truck-location-updated', handleTruckLocation);
+    return () => {
+      socket.off('truck-dispatch-update', handleDispatch);
+      socket.off('truck-location-updated', handleTruckLocation);
+    };
+  }, [socket, user, assignedTruckId]);
+
+  // Fetch driver info when a truck is assigned
+  useEffect(() => {
+    const loadDriver = async () => {
+      try {
+        if (!assignedTruckId) return;
+        const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+        const res = await fetch(`/api/v1/trucks/${assignedTruckId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data && (data.success || data.truck)) {
+          const truck = data.data || data.truck;
+          if (truck?.driver) setDriverInfo(truck.driver);
+        }
+      } catch {}
+    };
+    loadDriver();
+  }, [assignedTruckId]);
 
   const getCurrentLocation = () => {
     setLoading(true);
@@ -98,6 +152,21 @@ const LocationSharing = () => {
         maximumAge: 60000
       }
     );
+  };
+
+  const saveCurrentAsFavorite = () => {
+    if (!location) return;
+    const entry = { id: `loc-${Date.now()}`, label: address || `Pinned ${new Date().toLocaleString()}`, lat: location.lat, lng: location.lng };
+    const next = [entry, ...savedLocations].slice(0, 10);
+    setSavedLocations(next);
+    localStorage.setItem('autocare_saved_locations', JSON.stringify(next));
+    toast({ title: 'Saved', description: 'Location saved for quick reuse.' });
+  };
+
+  const applySavedLocation = (loc) => {
+    setLocation({ lat: loc.lat, lng: loc.lng });
+    setAddress(loc.label || `Location: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+    setIsSharing(true);
   };
 
   const shareLocationForPickup = () => {
@@ -299,6 +368,27 @@ const LocationSharing = () => {
                     </p>
                   </div>
 
+                  <div className="flex items-center gap-2">
+                    <Button onClick={saveCurrentAsFavorite} variant="outline" className="border-red-900/50 text-red-300 hover:bg-red-900/20">
+                      Save this location
+                    </Button>
+                    {savedLocations.length > 0 && (
+                      <select
+                        onChange={(e) => {
+                          const loc = savedLocations.find(l => l.id === e.target.value);
+                          if (loc) applySavedLocation(loc);
+                        }}
+                        className="bg-black/50 border border-red-900/50 text-white rounded p-2 text-sm"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Choose saved location</option>
+                        {savedLocations.map(loc => (
+                          <option key={loc.id} value={loc.id}>{loc.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
                   <Button
                     onClick={shareLocationForPickup}
                     className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white"
@@ -397,12 +487,33 @@ const LocationSharing = () => {
               {showMap ? 'Hide Map' : 'Show Map'}
             </Button>
           </div>
-          <MapView 
-            trucks={trucks} 
-            pickupRequests={pickupRequests.filter(req => req.userId === user?.id)}
-            userLocation={location}
-            showControls={true}
-          />
+          {driverInfo && (
+            <div className="mb-4 flex items-center justify-between bg-black/30 border border-red-900/30 rounded-lg p-3">
+              <div>
+                <div className="text-white font-medium">Your Driver: {driverInfo.name}</div>
+                <div className="text-gray-300 text-sm">{driverInfo.phone}{driverInfo.email ? ` • ${driverInfo.email}` : ''}</div>
+              </div>
+              <div className="flex gap-2">
+                {driverInfo.phone && (
+                  <a href={`tel:${driverInfo.phone}`} className="px-3 py-2 text-sm rounded bg-green-700 text-white">Call</a>
+                )}
+                {driverInfo.phone && (
+                  <a href={`sms:${driverInfo.phone}`} className="px-3 py-2 text-sm rounded bg-blue-700 text-white">Text</a>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Use Google Maps for accurate location display */}
+          <div className="mt-4">
+            <GoogleMap 
+              showUserLocations={false}
+              allowLocationSharing={true}
+              onLocationShared={() => {}}
+              truckLocation={assignedTruckLocation}
+              destination={location ? { lat: location.lat, lng: location.lng } : null}
+              showDirections={Boolean(assignedTruckLocation && location)}
+            />
+          </div>
         </motion.div>
       )}
     </div>

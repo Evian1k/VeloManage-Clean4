@@ -17,13 +17,22 @@ export const SocketProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    // Align with AuthContext storage keys
+    const token = localStorage.getItem('autocare_token') || localStorage.getItem('token');
+    const storedUserRaw = localStorage.getItem('autocare_user') || localStorage.getItem('user') || '{}';
+    const user = (() => {
+      try {
+        return JSON.parse(storedUserRaw);
+      } catch {
+        return {};
+      }
+    })();
     
     if (!token) return;
 
     // Initialize socket connection
-    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const newSocket = io(socketUrl, {
       auth: {
         token
       }
@@ -38,7 +47,11 @@ export const SocketProvider = ({ children }) => {
       if (adminRoles.includes(user.role)) {
         newSocket.emit('join-admin-room');
       } else {
-        newSocket.emit('join-user-room', user._id);
+        // Support both id and _id shapes
+        const userId = user.id || user._id;
+        if (userId) {
+          newSocket.emit('join-user-room', userId);
+        }
       }
     });
 
