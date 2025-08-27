@@ -51,11 +51,21 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/autocare-
 
 // Middleware
 app.use(helmet());
+
+// Dynamic CORS allow-list (supports deployed frontend)
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.FRONTEND_URL,
+  process.env.ADDITIONAL_FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://velo-manage-clean4.vercel.app', // production frontend
-  ],
+  origin: function(origin, callback) {
+    // Allow REST tools and same-origin
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS not allowed for this origin'), false);
+  },
   credentials: true
 }));
 
