@@ -66,13 +66,29 @@ export const MessageProvider = ({ children }) => {
       setLoading(true);
       
       if (user.isAdmin) {
-        // Admin: Load all conversations
+        // Admin: Load all conversations (list of users and last messages)
         const response = await apiService.getConversations();
         if (response.success) {
-          setConversations(response.data || {});
-          setUsersWithMessages(response.users || []);
+          // response.data is aggregate; normalize to user list
+          const conversationSummaries = response.data || [];
+          const users = conversationSummaries.map((c) => ({
+            id: c._id,
+            name: c.lastMessage?.sender?.name || 'User',
+            email: c.lastMessage?.sender?.email || ''
+          }));
+          setUsersWithMessages(users);
+
+          // Optionally prefetch messages for the first user
+          if (users.length > 0) {
+            const firstUserId = users[0].id;
+            const msgs = await apiService.getMessagesForUser(firstUserId);
+            if (msgs.success) {
+              setConversations({ [firstUserId]: msgs.data || [] });
+            }
+          } else {
+            setConversations({});
+          }
         } else {
-          // Fallback to local storage
           const localConvos = getLocalConversations();
           setConversations(localConvos);
         }
@@ -242,6 +258,14 @@ export const MessageProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Failed to send admin message:', error);
+      
+      // If we don't have this convo yet, try fetching it now
+      try {
+        const msgs = await apiService.getMessagesForUser(userId);
+        if (msgs.success) {
+          setConversations(prev => ({ ...prev, [userId]: msgs.data || [] }));
+        }
+      } catch {}
       
       // Fallback to local storage
       const newMessage = {
