@@ -8,8 +8,8 @@ import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 
 // Import routes
-import authRoutes from '../backend/src/routes/auth.js';
-import userRoutes from '../backend/src/routes/users.js';
+import authRoutes from './src/routes/auth.js';
+import userRoutes from './src/routes/users.js';
 import serviceRoutes from './src/routes/services.js';
 import truckRoutes from './src/routes/trucks.js';
 import messageRoutes from './src/routes/messages.js';
