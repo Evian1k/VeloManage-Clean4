@@ -23,7 +23,7 @@ export const SocketProvider = ({ children }) => {
     if (!token) return;
 
     // Initialize socket connection
-    const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
+    const newSocket = io(import.meta.env.VITE_API_URL || 'https://velomanage-clean4-2.onrender.com', {
       auth: {
         token
       }

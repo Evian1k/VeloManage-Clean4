@@ -11,7 +11,7 @@ export const APP_CONFIG = {
 
 // API Configuration
 export const API_CONFIG = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api',
+  baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://velomanage-clean4-2.onrender.com/api',
   timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000,
   retryAttempts: 3,
   retryDelay: 1000
