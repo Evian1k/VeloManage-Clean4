@@ -1,0 +1,38 @@
+# Render Blueprint — VeloManage backend
+# Docs: https://render.com/docs/blueprint-spec
+# After pushing this file to your repo, go to:
+#   Render Dashboard → New → Blueprint → select this repo
+# Render will read this file and create the service for you.
+
+services:
+  - type: web
+    name: velomanage-backend
+    runtime: node
+    plan: free            # change to 'starter' for production (no spin-down, static IP available)
+    region: singapore     # pick the region closest to your users
+    rootDir: backend
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_VERSION
+        value: v1
+      - key: MONGODB_URI
+        sync: false       # set this manually in Render dashboard (secret)
+      - key: JWT_SECRET
+        sync: false       # set this manually — use `openssl rand -hex 32`
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: FRONTEND_URL
+        value: https://velo-manage-clean4.vercel.app
+      - key: SOCKET_CORS_ORIGIN
+        value: https://velo-manage-clean4.vercel.app
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100

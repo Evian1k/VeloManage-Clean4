@@ -23,10 +23,17 @@ export const SocketProvider = ({ children }) => {
     if (!token) return;
 
     // Initialize socket connection
-    const newSocket = io(import.meta.env.VITE_API_URL || 'https://velomanage-clean4-2.onrender.com', {
-      auth: {
-        token
-      }
+    // Socket.io needs the bare host (no /api/v1 path). Use VITE_SOCKET_URL if set,
+    // otherwise derive the host from VITE_API_URL (strip the /api/... suffix).
+    const socketUrl = import.meta.env.VITE_SOCKET_URL
+      || (import.meta.env.VITE_API_URL || 'https://velomanage-clean4-2.onrender.com')
+          .replace(/\/api\/.*$/, '');
+    const newSocket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
     });
 
     newSocket.on('connect', () => {
