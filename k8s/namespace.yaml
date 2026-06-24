@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velomanage
+  labels:
+    app.kubernetes.io/name: velomanage
+    app.kubernetes.io/part-of: velomanage
+    # istio.io/rev: default   # uncomment if using Istio service mesh

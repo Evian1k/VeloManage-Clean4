@@ -5,8 +5,8 @@ import User from '../models/User.js';
 export const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.header('Authorization');
-    const token = authHeader && authHeader.startsWith('Bearer ') 
-      ? authHeader.replace('Bearer ', '') 
+    const token = authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.replace('Bearer ', '')
       : null;
 
     if (!token) {
@@ -18,7 +18,7 @@ export const authenticateToken = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-fallback-secret');
-    
+
     // Get user from database
     const user = await User.findById(decoded.userId);
     if (!user || !user.isActive) {
@@ -33,26 +33,13 @@ export const authenticateToken = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error('Authentication error:', error);
-    
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token.'
-      });
+      return res.status(401).json({ success: false, message: 'Invalid token.' });
     }
-    
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expired.'
-      });
+      return res.status(401).json({ success: false, message: 'Token expired.' });
     }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error during authentication.'
-    });
+    res.status(500).json({ success: false, message: 'Server error during authentication.' });
   }
 };
 

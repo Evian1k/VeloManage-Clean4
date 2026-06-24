@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: velomanage-backend
+  namespace: velomanage
+  labels:
+    app.kubernetes.io/name: velomanage-backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: velomanage
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: velomanage-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: velomanage-backend
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: velomanage
+      annotations:
+        # Force rollout on secret/config rotation
+        checksum/config: "placeholder-replaced-by-cicd"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: ghcr.io/velomanage/velomanage-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 10000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: velomanage-config
+            - secretRef:
+                name: velomanage-secrets
+          env:
+            - name: PORT
+              value: "10000"
+            - name: NODE_ENV
+              value: production
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "768Mi"
+          # Liveness: kill & restart unhealthy pods
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Readiness: only route traffic to pods that can serve it
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Startup: give slow-booting pods a long grace period before liveness kicks in
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 12   # up to 2 minutes
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # node may write to ./uploads
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+      volumes:
+        - name: uploads
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: velomanage-backend
+                topologyKey: kubernetes.io/hostname

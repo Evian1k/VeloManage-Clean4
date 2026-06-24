@@ -1,0 +1,74 @@
+# =============================================================================
+# VeloManage — Deploy (no-op notifier)
+# =============================================================================
+# IMPORTANT: Render auto-deploys on every push to `main` (see render.yaml:
+# `autoDeploy: true`). There is no manual deploy step required for the backend.
+# This workflow exists as an explicit "deploy checkpoint" so that:
+#   - GitHub shows a green "deploy" status after CI passes, and
+#   - Operators can use `workflow_dispatch` to record a manual deploy event
+#     (e.g. after rotating a secret or bumping a service plan).
+#
+# To trigger a deploy manually without pushing:
+#   GitHub → Actions → "Deploy" → Run workflow
+# (But remember: Render already auto-deploys on push, so this is informational.)
+# =============================================================================
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Deploy note (e.g. 'rotate JWT_SECRET')"
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    name: Notify (Render auto-deploys on push)
+    runs-on: ubuntu-latest
+    # Run on manual dispatch OR after a successful CI run on main
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: Print deploy message
+        run: |
+          echo "============================================================"
+          echo "  VeloManage — Deploy notification"
+          echo "============================================================"
+          echo "Repository:  ${{ github.repository }}"
+          echo "Branch:      ${{ github.ref_name }}"
+          echo "Actor:       ${{ github.actor }}"
+          echo "Commit:      ${{ github.sha }}"
+          if [ -n "${{ github.event.inputs.note }}" ]; then
+            echo "Note:        ${{ github.event.inputs.note }}"
+          fi
+          echo ""
+          echo "Render auto-deploys on every push to main (render.yaml: autoDeploy: true)."
+          echo "Monitor the deploy at: https://dashboard.render.com"
+          echo ""
+          echo "Backend health (once live):"
+          echo "  curl https://<your-render-backend-url>/health"
+          echo "============================================================"
+
+      - name: Summary
+        run: |
+          echo "## Deploy notification :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Render auto-deploys on push to \`main\` — no manual action needed." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Actor:** ${{ github.actor }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger:** ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ github.event.inputs.note }}" ]; then
+            echo "- **Note:** ${{ github.event.inputs.note }}" >> "$GITHUB_STEP_SUMMARY"
+          fi

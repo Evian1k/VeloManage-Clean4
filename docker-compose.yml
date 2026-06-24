@@ -1,0 +1,139 @@
+# =============================================================================
+# VeloManage — Full-stack local development / CI composition
+# =============================================================================
+# Usage:
+#   docker compose up --build
+#   docker compose up -d
+#   docker compose logs -f backend
+#   docker compose down            # stop
+#   docker compose down -v         # stop + delete volumes (DESTRUCTIVE)
+#
+# Services:
+#   - backend  : Express API on :10000
+#   - frontend : nginx-served React SPA on :8080 (host) -> :80 (container)
+#   - mongo    : MongoDB 7 on :27017, persisted to `mongo_data` volume
+#   - redis    : Redis 7 on :6379, persisted to `redis_data` volume (future use)
+#
+# Notes:
+#   - The backend talks to mongo via `mongodb://mongo:27017/velomanage`
+#   - The frontend nginx proxies /api/* to `http://backend:10000`
+#   - All services share the `velomanage-net` bridge network
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # MongoDB
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: velomanage-mongo
+    restart: unless-stopped
+    networks:
+      - velomanage-net
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      # Expose to host for easy inspection with mongosh / Compass
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-velo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-velopass}
+      MONGO_INITDB_DATABASE: velomanage
+    healthcheck:
+      test: |
+        mongosh --quiet --eval "db.runCommand({ ping: 1 }).ok" \
+          -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Redis (for future use: sessions, rate-limit store, queues, caching)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: velomanage-redis
+    restart: unless-stopped
+    networks:
+      - velomanage-net
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Backend (Express + Mongoose + Socket.io)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: velomanage-backend
+    restart: unless-stopped
+    networks:
+      - velomanage-net
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "10000:10000"
+    environment:
+      NODE_ENV: production
+      PORT: 10000
+      API_VERSION: v1
+      # Mongo with auth — creds match MONGO_INITDB_* above
+      MONGODB_URI: mongodb://${MONGO_USER:-velo}:${MONGO_PASS:-velopass}@mongo:27017/velomanage?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-in-production}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      FRONTEND_URL: http://localhost:8080
+      SOCKET_CORS_ORIGIN: http://localhost:8080
+      ADDITIONAL_CORS_ORIGINS: http://localhost:5173
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      REDIS_URL: redis://redis:6379
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:10000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Frontend (Vite/React build served by nginx)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: velomanage-frontend
+    restart: unless-stopped
+    networks:
+      - velomanage-net
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+# ---------------------------------------------------------------------------
+# Networks & volumes
+# ---------------------------------------------------------------------------
+networks:
+  velomanage-net:
+    name: velomanage-net
+    driver: bridge
+
+volumes:
+  mongo_data:
+    name: mongo_data
+  redis_data:
+    name: redis_data

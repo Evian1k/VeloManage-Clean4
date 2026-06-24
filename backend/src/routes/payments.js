@@ -6,24 +6,50 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Lazy-init Stripe so the server can boot even without STRIPE_SECRET_KEY set
+let _stripe = null;
+function getStripe() {
+  if (_stripe) return _stripe;
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+  _stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  return _stripe;
+}
 
 // Create Payment Intent
 router.post('/create-payment-intent', async (req, res) => {
   try {
-    const { amount } = req.body;
-
+    const { amount, currency = 'usd' } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid amount required (in cents)' });
+    }
+    const stripe = getStripe();
     const paymentIntent = await stripe.paymentIntents.create({
-      amount, // amount in cents
-      currency: 'usd',
+      amount,
+      currency,
     });
-
-    res.send({
+    res.json({
+      success: true,
       clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: error.message });
+    console.error('Payment intent error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Confirm payment
+router.post('/confirm/:id', async (req, res) => {
+  try {
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.retrieve(req.params.id);
+    res.json({ success: true, status: paymentIntent.status, paymentIntent });
+  } catch (error) {
+    console.error('Payment confirm error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

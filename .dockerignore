@@ -1,0 +1,82 @@
+# =============================================================================
+# Global .dockerignore — applied to every Docker build context in this repo
+# =============================================================================
+# Keeps build contexts small & caches warm by excluding files that change often
+# or that should never end up inside an image.
+# =============================================================================
+
+# ---- Version control ----
+.git
+.gitignore
+.gitattributes
+.github
+
+# ---- Node / build artefacts ----
+**/node_modules
+**/dist
+**/build
+**/.vite
+**/.cache
+**/.parcel-cache
+**/.turbo
+**/coverage
+**/.nyc_output
+
+# ---- Logs ----
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/pnpm-debug.log*
+logs
+**/logs
+
+# ---- Environment & secrets ----
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/!.env.example
+
+# ---- Editor / OS ----
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ---- Docker ----
+Dockerfile
+*.dockerfile
+docker-compose*.yml
+.dockerignore
+**/Dockerfile
+**/docker-compose*.yml
+**/.dockerignore
+
+# ---- Tests / docs / CI (not needed inside the image) ----
+**/__tests__
+**/*.test.js
+**/*.spec.js
+**/*.test.jsx
+**/*.spec.jsx
+**/*.test.ts
+**/*.spec.ts
+docs
+**/docs
+k8s
+**/k8s
+*.md
+**/*.md
+LICENSE
+
+# ---- Misc ----
+.husky
+.editorconfig
+.prettierrc*
+.eslintrc*
+eslint.config.*
+tsconfig.json
+README*

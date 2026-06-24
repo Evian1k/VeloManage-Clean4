@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const branchSchema = new mongoose.Schema({
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', index: true },
   name: {
     type: String,
     required: true,

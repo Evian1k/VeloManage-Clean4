@@ -10,6 +10,25 @@ import mongoose from 'mongoose';
 // Import routes
 import authRoutes from './src/routes/auth.js';
 import userRoutes from './src/routes/users.js';
+import organizationRoutes from './src/routes/organizations.js';
+import auditRoutes from './src/routes/audit.js';
+
+// Module routes (enterprise)
+import vehicleRoutes from './src/routes/modules/vehicles.js';
+import driverRoutes from './src/routes/modules/drivers.js';
+import maintenanceRoutes from './src/routes/modules/maintenance.js';
+import fuelRoutes from './src/routes/modules/fuel.js';
+import tripRoutes from './src/routes/modules/trips.js';
+import geofenceRoutes from './src/routes/modules/geofences.js';
+import complianceRoutes from './src/routes/modules/compliance.js';
+import accidentRoutes from './src/routes/modules/accidents.js';
+import financeRoutes from './src/routes/modules/finance.js';
+import assetRoutes from './src/routes/modules/assets.js';
+import vendorRoutes from './src/routes/modules/vendors.js';
+import customerRoutes from './src/routes/modules/customers.js';
+import staffRoutes from './src/routes/modules/staff.js';
+
+// Legacy / compatibility routes (kept for existing frontend)
 import serviceRoutes from './src/routes/services.js';
 import truckRoutes from './src/routes/trucks.js';
 import messageRoutes from './src/routes/messages.js';
@@ -19,10 +38,17 @@ import bookingRoutes from './src/routes/bookings.js';
 import analyticsRoutes from './src/routes/analytics.js';
 import dashboardRoutes from './src/routes/dashboard.js';
 import locationRoutes from './src/routes/locations.js';
+import paymentRoutes from './src/routes/payments.js';
 
 // Import middleware
 import { authenticateToken } from './src/middleware/auth.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
+import { attachTenant } from './src/middleware/tenant.js';
+import {
+  metricsMiddleware,
+  requestMetricsMiddleware,
+  setDbConnections,
+} from './src/middleware/monitoring.js';
 
 // Load environment variables
 dotenv.config();
@@ -113,13 +139,36 @@ mongoose.connection.on('disconnected', () => {
   if (!isShuttingDown) {
     console.warn('⚠️  MongoDB disconnected. Will attempt to reconnect automatically.');
   }
+  setDbConnections(0);
 });
 mongoose.connection.on('reconnected', () => {
   console.log('✅ MongoDB reconnected.');
+  updateDbConnectionsGauge();
 });
 mongoose.connection.on('error', (err) => {
   console.error('❌ MongoDB connection error event:', err.message);
 });
+
+// Periodically update the db_connections gauge so /metrics reflects the
+// actual size of the Mongoose connection pool (maxPoolSize=10 by default).
+function updateDbConnectionsGauge() {
+  try {
+    const pool = mongoose.connection?.client?.db?.()?.s?.topology?.s?.pool;
+    const count = pool?.all?.length ?? pool?.connectionPool?.length;
+    if (typeof count === 'number' && Number.isFinite(count)) {
+      setDbConnections(count);
+    } else if (mongoose.connection.readyState === 1) {
+      // Fallback: report 1 if connected but we can't introspect the pool size
+      setDbConnections(1);
+    } else {
+      setDbConnections(0);
+    }
+  } catch {
+    // Introspection paths vary across driver versions; fail silently.
+    setDbConnections(mongoose.connection.readyState === 1 ? 1 : 0);
+  }
+}
+setInterval(updateDbConnectionsGauge, 15000).unref?.();
 
 // Kick off the initial connection (non-blocking — server starts regardless)
 connectMongo();
@@ -153,6 +202,10 @@ const limiter = rateLimit({
   },
 });
 app.use('/api/', limiter);
+
+// Metrics-recording middleware — must come AFTER the rate limiter but BEFORE
+// routes so every request (including 404s) is observed.
+app.use(requestMetricsMiddleware);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -196,22 +249,40 @@ app.get('/ready', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     name: 'VeloManage API',
-    version: '1.0.0',
+    version: '2.0.0',
     environment: NODE_ENV,
     endpoints: {
       health: '/health',
       ready: '/ready',
-      auth: `/api/${API_VERSION}/auth`,
-      users: `/api/${API_VERSION}/users`,
-      services: `/api/${API_VERSION}/services`,
-      trucks: `/api/${API_VERSION}/trucks`,
-      messages: `/api/${API_VERSION}/messages`,
-      pickups: `/api/${API_VERSION}/pickups`,
-      branches: `/api/${API_VERSION}/branches`,
-      bookings: `/api/${API_VERSION}/bookings`,
-      analytics: `/api/${API_VERSION}/analytics`,
-      dashboard: `/api/${API_VERSION}/dashboard`,
-      locations: `/api/${API_VERSION}/locations`,
+      auth: `${apiBase}/auth`,
+      organizations: `${apiBase}/organizations`,
+      audit: `${apiBase}/audit`,
+      // Enterprise modules
+      vehicles: `${apiBase}/vehicles`,
+      drivers: `${apiBase}/drivers`,
+      maintenance: `${apiBase}/maintenance`,
+      fuel: `${apiBase}/fuel`,
+      trips: `${apiBase}/trips`,
+      geofences: `${apiBase}/geofences`,
+      compliance: `${apiBase}/compliance`,
+      accidents: `${apiBase}/accidents`,
+      finance: `${apiBase}/finance`,
+      assets: `${apiBase}/assets`,
+      vendors: `${apiBase}/vendors`,
+      customers: `${apiBase}/customers`,
+      staff: `${apiBase}/staff`,
+      // Legacy compatibility
+      users: `${apiBase}/users`,
+      services: `${apiBase}/services`,
+      trucks: `${apiBase}/trucks`,
+      messages: `${apiBase}/messages`,
+      pickups: `${apiBase}/pickups`,
+      branches: `${apiBase}/branches`,
+      bookings: `${apiBase}/bookings`,
+      analytics: `${apiBase}/analytics`,
+      dashboard: `${apiBase}/dashboard`,
+      locations: `${apiBase}/locations`,
+      payments: `${apiBase}/payments`,
     },
   });
 });
@@ -219,17 +290,42 @@ app.get('/', (req, res) => {
 // ---------------------------------------------------------------------------
 // API Routes
 // ---------------------------------------------------------------------------
-app.use(`/api/${API_VERSION}/auth`, authRoutes);
-app.use(`/api/${API_VERSION}/users`, authenticateToken, userRoutes);
-app.use(`/api/${API_VERSION}/services`, authenticateToken, serviceRoutes);
-app.use(`/api/${API_VERSION}/trucks`, authenticateToken, truckRoutes);
-app.use(`/api/${API_VERSION}/messages`, authenticateToken, messageRoutes);
-app.use(`/api/${API_VERSION}/pickups`, authenticateToken, pickupRoutes);
-app.use(`/api/${API_VERSION}/branches`, authenticateToken, branchRoutes);
-app.use(`/api/${API_VERSION}/bookings`, authenticateToken, bookingRoutes);
-app.use(`/api/${API_VERSION}/analytics`, authenticateToken, analyticsRoutes);
-app.use(`/api/${API_VERSION}/dashboard`, authenticateToken, dashboardRoutes);
-app.use(`/api/${API_VERSION}/locations`, authenticateToken, locationRoutes);
+const apiBase = `/api/${API_VERSION}`;
+
+// Public
+app.use(`${apiBase}/auth`, authRoutes);
+
+// Authenticated + tenant-scoped
+app.use(`${apiBase}/organizations`, authenticateToken, attachTenant, organizationRoutes);
+app.use(`${apiBase}/audit`, authenticateToken, attachTenant, auditRoutes);
+
+// Enterprise module routes
+app.use(`${apiBase}/vehicles`, authenticateToken, attachTenant, vehicleRoutes);
+app.use(`${apiBase}/drivers`, authenticateToken, attachTenant, driverRoutes);
+app.use(`${apiBase}/maintenance`, authenticateToken, attachTenant, maintenanceRoutes);
+app.use(`${apiBase}/fuel`, authenticateToken, attachTenant, fuelRoutes);
+app.use(`${apiBase}/trips`, authenticateToken, attachTenant, tripRoutes);
+app.use(`${apiBase}/geofences`, authenticateToken, attachTenant, geofenceRoutes);
+app.use(`${apiBase}/compliance`, authenticateToken, attachTenant, complianceRoutes);
+app.use(`${apiBase}/accidents`, authenticateToken, attachTenant, accidentRoutes);
+app.use(`${apiBase}/finance`, authenticateToken, attachTenant, financeRoutes);
+app.use(`${apiBase}/assets`, authenticateToken, attachTenant, assetRoutes);
+app.use(`${apiBase}/vendors`, authenticateToken, attachTenant, vendorRoutes);
+app.use(`${apiBase}/customers`, authenticateToken, attachTenant, customerRoutes);
+app.use(`${apiBase}/staff`, authenticateToken, attachTenant, staffRoutes);
+
+// Legacy routes (existing frontend compatibility)
+app.use(`${apiBase}/users`, authenticateToken, userRoutes);
+app.use(`${apiBase}/services`, authenticateToken, serviceRoutes);
+app.use(`${apiBase}/trucks`, authenticateToken, truckRoutes);
+app.use(`${apiBase}/messages`, authenticateToken, messageRoutes);
+app.use(`${apiBase}/pickups`, authenticateToken, pickupRoutes);
+app.use(`${apiBase}/branches`, authenticateToken, branchRoutes);
+app.use(`${apiBase}/bookings`, authenticateToken, bookingRoutes);
+app.use(`${apiBase}/analytics`, authenticateToken, analyticsRoutes);
+app.use(`${apiBase}/dashboard`, authenticateToken, dashboardRoutes);
+app.use(`${apiBase}/locations`, authenticateToken, locationRoutes);
+app.use(`${apiBase}/payments`, authenticateToken, paymentRoutes);
 
 // ---------------------------------------------------------------------------
 // Socket.io setup for real-time features
@@ -289,6 +385,13 @@ io.on('connection', (socket) => {
 
 // Make io available to routes via app.locals
 app.set('socketio', io);
+
+// ---------------------------------------------------------------------------
+// Prometheus metrics endpoint — must come BEFORE the 404 handler so /metrics
+// is always reachable. Exposes http_requests_total, http_request_duration_seconds,
+// active_connections, db_connections, etc. (see src/middleware/monitoring.js).
+// ---------------------------------------------------------------------------
+app.use('/metrics', metricsMiddleware);
 
 // ---------------------------------------------------------------------------
 // 404 handler — MUST come before errorHandler so unknown routes are handled
